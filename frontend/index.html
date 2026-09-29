@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lahore Smog Watch — live air quality dashboard</title>
+<meta name="description" content="Live air quality for Lahore: AQI, forecast, pollutants, stations and an AI agent, on the Punjab EPA scale.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600&family=Noto+Nastaliq+Urdu&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#F1ECDF;--ink:#29251F;--soft:#6B6255;--rule:#DCD5C2;--brass:#AD7A34;--brass-d:#8C6226;--dk:#221E19;--dk-i:#EFE8D9;--dk-s:#B4A991;--dk-r:rgba(239,232,217,.14);--dk-f:#2C2721;--ok:#71905F;--err:#B65B45;--idle:#9C9486}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 "Public Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--brass-d);text-underline-offset:3px}a:hover{color:var(--brass)}
+:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+h1,h2,p{margin:0}
+.wrap{max-width:78rem;margin:0 auto;padding-inline:clamp(1.1rem,4vw,2.5rem)}
+.mono{font-family:"IBM Plex Mono",monospace}
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem 1.5rem;padding-block:1.25rem}
+.brand h1{font:600 1.3rem "Fraunces",Georgia,serif;letter-spacing:-.005em}
+.brand p{font:1rem/1.9 "Noto Nastaliq Urdu",serif;color:var(--soft)}
+.nav{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem 1.25rem;font-size:.875rem}
+.nav a{color:var(--soft);text-decoration:none}.nav a:hover{color:var(--ink)}
+.nav .in{color:var(--brass-d);font-weight:500}
+.btn{appearance:none;font:500 .875rem "Public Sans",sans-serif;color:#1C1712;background:var(--brass);border:0;border-radius:9px;padding:.55rem 1rem;cursor:pointer}
+.btn:hover{background:#C08C3F}.btn[disabled]{opacity:.4;cursor:default}
+.layout{display:block}
+body.open .layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:1.75rem;align-items:start}
+main{display:flex;flex-direction:column;gap:clamp(2.25rem,4vw,3.25rem);min-width:0}
+.title{font:400 1.25rem "Fraunces",Georgia,serif;letter-spacing:-.01em;margin-bottom:.3rem}
+.note{color:var(--soft);font-size:.875rem;margin-bottom:1rem;max-width:36rem}
+/* hero */
+.hero{position:relative;overflow:hidden;border-radius:18px;background:#DAD5C8;color:#2B271F;transition:background .9s,color .9s;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:1rem 2rem;align-items:center;padding:clamp(1.5rem,4vw,2.5rem)}
+.hero::before{content:"";position:absolute;top:-4rem;right:-2rem;width:16rem;height:16rem;border-radius:50%;background:radial-gradient(#FFFBF0,rgba(255,241,214,0) 68%);opacity:var(--sun,0);transition:opacity 1.2s;pointer-events:none}
+.hero>*{position:relative}
+.h-l .lede{font-size:.9rem;opacity:.75}
+.h-l .state{font:340 clamp(1.9rem,4.6vw,2.9rem)/1.05 "Fraunces",Georgia,serif;letter-spacing:-.015em;margin:.3rem 0 .8rem;font-variation-settings:"SOFT" 40,"WONK" 1}
+.h-l .adv{font-size:.9rem;opacity:.8;max-width:26rem}
+.h-l .meta{display:flex;align-items:center;gap:.6rem;font-size:.8rem;opacity:.75;margin-top:1.1rem}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--idle)}
+.dot[data-s=loading]{animation:br 1.6s ease-in-out infinite}.dot[data-s=ok]{background:var(--ok)}.dot[data-s=error]{background:var(--err)}
+.lk{appearance:none;background:none;border:0;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}.lk[disabled]{opacity:.4}
+.gauge{width:100%;max-width:340px;justify-self:center;display:block}
+.g-num{font:500 40px "IBM Plex Mono",monospace;text-anchor:middle;fill:currentColor}
+.g-unit{font:500 11px "Public Sans",sans-serif;text-anchor:middle;fill:currentColor;opacity:.7}
+.g-tick{font:500 8px "IBM Plex Mono",monospace;text-anchor:middle;fill:currentColor;opacity:.7}
+#needle{transform-origin:130px 130px;transition:transform 1.3s cubic-bezier(.3,1.3,.5,1)}
+/* readouts */
+.ro-row{display:grid;grid-template-columns:repeat(4,1fr);border-block:1px solid var(--rule)}
+.ro{padding:1.1rem 1rem;border-left:1px solid var(--rule)}.ro:first-child{border-left:0;padding-left:0}
+.ro .l{font-size:.78rem;color:var(--soft);margin-bottom:.45rem}
+.ro .v{font:500 .95rem/1.3 "IBM Plex Mono",monospace}
+.cmp{width:38px;height:38px;display:block;margin-bottom:.5rem}
+#wArrow{transform-origin:28px 28px;transition:transform .9s}
+/* charts */
+.panel{border:1px solid var(--rule);border-radius:14px;padding:1.25rem 1.25rem 1rem;background:#F6F2E8}
+.panel svg{width:100%;height:auto;display:block}
+.ax{font:500 9px "IBM Plex Mono",monospace;fill:var(--soft)}
+.vl{font:600 10px "IBM Plex Mono",monospace;fill:var(--ink)}
+.poll{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--rule);border-radius:14px;overflow:hidden}
+.pl{padding:1rem 1.1rem;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.pl:nth-child(3n){border-right:0}.pl:nth-child(n+4){border-bottom:0}
+.pl .n{font-size:.8rem;color:var(--soft)}.pl .s{font-size:.72rem;color:var(--soft);opacity:.8}
+.pl .v{font:500 1.3rem "IBM Plex Mono",monospace;margin-top:.5rem}.pl .v small{font:400 .7rem "Public Sans",sans-serif;color:var(--soft)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.mapf{border-radius:12px;overflow:hidden;border:1px solid var(--rule)}.mapf svg{display:block;width:100%;height:auto}
+.st text{font:600 9px "IBM Plex Mono",monospace;text-anchor:middle}.st circle{stroke:var(--paper);stroke-width:2}
+.leg{display:flex;flex-wrap:wrap;gap:.4rem .9rem;margin-top:.8rem;font-size:.75rem;color:var(--soft)}
+.leg i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:.35rem}
+.ur{display:block;font-family:"Noto Nastaliq Urdu",serif;color:var(--soft);line-height:1.9;font-size:.8rem;font-weight:400}
+.pl .s.ur{font-size:.82rem;opacity:1}
+.u{font-family:"Noto Nastaliq Urdu",serif;font-size:.9em;font-weight:400}
+.title .u{font-size:.8em;color:var(--soft);margin-left:.5rem}
+.slist{margin-top:1rem;display:grid;grid-template-columns:1fr 1fr;gap:0 1.25rem}
+.sl{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--rule);font-size:.8rem}
+.sl i{width:10px;height:10px;border-radius:50%}.sl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sl b{font:600 .8rem "IBM Plex Mono",monospace}
+.rk{display:grid;grid-template-columns:1.4rem 6.5rem 1fr 2.4rem;align-items:center;gap:.6rem;padding:.5rem 0;border-bottom:1px solid var(--rule);font-size:.85rem}
+.rk .b{height:8px;border-radius:4px;background:var(--rule);overflow:hidden}.rk .b i{display:block;height:100%}
+.rk .a{font:600 .85rem "IBM Plex Mono",monospace;text-align:right}
+.src{display:grid;gap:.7rem;max-width:40rem}.src div{display:grid;grid-template-columns:9rem 1fr;gap:.75rem;font-size:.84rem;padding-bottom:.7rem;border-bottom:1px solid var(--rule)}.src dd{margin:0;color:var(--soft)}.src dt{margin:0}
+/* chat */
+.launch{position:fixed;right:1.25rem;bottom:1.25rem;z-index:15;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:.75rem 1.2rem}
+body.open .launch{display:none}
+aside.chat{display:none;flex-direction:column;background:var(--dk);color:var(--dk-i);border-radius:16px;overflow:hidden}
+body.open aside.chat{display:flex;position:sticky;top:12px;height:calc(100vh - 24px)}
+.c-h{display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem;padding:1.1rem 1.2rem .9rem;border-bottom:1px solid var(--dk-r)}
+.c-h h2{font:400 1.1rem "Fraunces",Georgia,serif}
+.chip-a{display:inline-flex;align-items:center;gap:.45rem;margin-top:.45rem;font:500 .75rem "IBM Plex Mono",monospace;padding:.2rem .6rem;border-radius:99px;background:var(--dk-f);color:var(--dk-s)}
+.chip-a i{width:8px;height:8px;border-radius:50%;background:var(--idle)}
+.x{appearance:none;background:none;border:1px solid var(--dk-r);color:var(--dk-s);border-radius:8px;width:30px;height:30px;font-size:1rem;cursor:pointer}
+.thread{flex:1 1 auto;min-height:0;overflow-y:auto;padding:1rem 1.2rem;display:flex;flex-direction:column;gap:1.05rem}
+.empty{color:var(--dk-s);font-size:.85rem;font-style:italic;margin:auto 0;text-align:center}
+.you{align-self:flex-end;max-width:88%;background:var(--dk-f);border-radius:12px 12px 3px 12px;padding:.55rem .8rem;font-size:.88rem}
+.bot{align-self:flex-start;border-left:2px solid var(--brass);padding-left:.9rem;font-size:.88rem;line-height:1.6}
+.bot p{margin:0 0 .55rem}.bot p:last-child{margin:0}.bot ul{margin:0 0 .55rem;padding-left:1.1rem}.bot strong{color:#fff;font-weight:600}
+.pend{color:var(--dk-s);font-style:italic;animation:br 1.8s ease-in-out infinite}.bot.er{border-color:var(--err)}
+.c-f{border-top:1px solid var(--dk-r);padding:.9rem 1.2rem 1.1rem}
+.sug{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.7rem}
+.sug button{appearance:none;font:inherit;font-size:.72rem;color:var(--dk-s);background:none;border:1px solid var(--dk-r);border-radius:99px;padding:.28rem .65rem;cursor:pointer}.sug button:hover{border-color:var(--brass);color:var(--dk-i)}
+.cmp-f{display:flex;gap:.5rem}
+.cmp-f input{flex:1;min-width:0;font:inherit;font-size:.88rem;color:var(--dk-i);background:var(--dk-f);border:1px solid var(--dk-r);border-radius:9px;padding:.6rem .75rem}.cmp-f input:focus{border-color:var(--brass);outline:0}
+.foot{margin-top:clamp(3rem,6vw,4.5rem);padding-block:1.75rem 5rem;border-top:1px solid var(--rule);font-size:.85rem;color:var(--soft);display:flex;flex-wrap:wrap;justify-content:space-between;gap:.5rem 2rem}
+@keyframes br{50%{opacity:.45}}
+@media(max-width:1000px){body.open .layout{display:block}body.open aside.chat{position:fixed;left:0;right:0;bottom:0;top:auto;height:62vh;z-index:20;border-radius:16px 16px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.3)}.hero{grid-template-columns:1fr}.h-l{text-align:center}.h-l .adv{margin-inline:auto}.h-l .meta{justify-content:center}}
+@media(max-width:700px){.ro-row{grid-template-columns:repeat(2,1fr)}.ro:nth-child(odd){border-left:0;padding-left:0}.ro:nth-child(n+3){border-top:1px solid var(--rule)}.poll{grid-template-columns:repeat(2,1fr)}.pl:nth-child(3n){border-right:1px solid var(--rule)}.pl:nth-child(2n){border-right:0}.pl:nth-child(n+4){border-bottom:1px solid var(--rule)}.pl:nth-child(n+5){border-bottom:0}.split{grid-template-columns:1fr}.src div{grid-template-columns:1fr;gap:.1rem}.nav a:not(.in){display:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="brand"><h1>Lahore Smog Watch</h1><p lang="ur" dir="rtl">فضائی معیار کی نگرانی</p></div>
+  <nav class="nav">
+    <a href="#forecast">Forecast</a><a href="#pollutants">Pollutants</a><a href="#map">Map</a><a href="#cities">Cities</a>
+    <a class="in" href="https://www.linkedin.com/in/muhammadadeelai/" target="_blank" rel="noopener">LinkedIn</a>
+    <button class="btn" id="open1" type="button">Ask the agent</button>
+  </nav>
+</header>
+
+<div class="layout">
+<main>
+  <section class="hero" id="hero">
+    <div class="h-l">
+      <p class="lede">Right now the air in Lahore is</p>
+      <p class="state" id="state">reading the monitors</p>
+      <p class="adv" id="adv">Connecting to the nearest station.</p>
+      <p class="meta"><span class="dot" id="dot"></span><span id="upd">Connecting…</span><button class="lk" id="refresh" disabled>Check again</button></p>
+    </div>
+    <svg class="gauge" viewBox="0 0 260 200" role="img" aria-label="AQI gauge">
+      <g id="arcs"></g><g id="ticks"></g>
+      <g id="needle"><polygon points="126,130 130,46 134,130" fill="currentColor"/><circle cx="130" cy="130" r="9" fill="currentColor"/><circle cx="130" cy="130" r="3.5" fill="#F1ECDF"/></g>
+      <text class="g-num" id="num" x="130" y="190">—</text>
+    </svg>
+  </section>
+
+  <section class="ro-row" aria-label="Current conditions">
+    <div class="ro"><p class="l">Wind <span class="u">ہوا</span></p>
+      <svg class="cmp" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="22" fill="none" stroke="#DCD5C2" stroke-width="1.5"/><path d="M28 6v5M50 28h-5M28 50v-5M6 28h5" stroke="#6B6255" stroke-width="1.5"/><text x="28" y="18" text-anchor="middle" font-size="7" font-family="IBM Plex Mono" font-weight="600" fill="#6B6255">N</text><g id="wArrow"><line x1="28" y1="28" x2="28" y2="10" stroke="#AD7A34" stroke-width="2"/><polygon points="28,6 24,14 32,14" fill="#AD7A34"/></g></svg>
+      <p class="v" id="wind">—</p></div>
+    <div class="ro"><p class="l">Weather <span class="u">موسم</span></p><p class="v" id="wx">—</p></div>
+    <div class="ro"><p class="l">Fires nearby <span class="u">قریبی آگ</span></p><p class="v" id="fires">—</p></div>
+    <div class="ro"><p class="l">Main pollutant <span class="u">بنیادی آلودگی</span></p><p class="v" id="pol">—</p></div>
+  </section>
+
+  <section id="forecast">
+    <h2 class="title">Seven-day AQI forecast <span class="u">سات دن کی پیش گوئی</span></h2>
+    <p class="note" id="fnote">Daily peak of the modelled US AQI for Lahore. Bands follow the Punjab EPA colours.</p>
+    <div class="panel"><svg id="fsvg" viewBox="0 0 560 210" role="img" aria-label="Seven day AQI forecast"></svg></div>
+  </section>
+
+  <section id="pollutants">
+    <h2 class="title">Air pollutants <span class="u">فضائی آلودگی</span></h2>
+    <p class="note">Modelled surface concentrations for Lahore right now (Open-Meteo, CAMS).</p>
+    <div class="poll" id="poll"></div>
+  </section>
+
+  <section class="split">
+    <div id="map">
+      <h2 class="title">Stations around Lahore <span class="u">لاہور کے اسٹیشن</span></h2>
+      <p class="note" id="mnote">Loading nearby stations…</p>
+      <div class="mapf"><svg id="msvg" viewBox="0 0 340 320" role="img" aria-label="Station map"><rect width="340" height="320" fill="#E7E1D1"/><path d="M0 80h340M0 160h340M0 240h340M85 0v320M170 0v320M255 0v320" stroke="#DCD5C2"/><g transform="translate(312,26)"><polygon points="0,-10 5,4 0,1 -5,4" fill="#6B6255"/><text y="18" text-anchor="middle" font-size="9" font-family="IBM Plex Mono" font-weight="600" fill="#6B6255">N</text></g><g id="dots"></g></svg></div>
+      <div class="leg" id="leg"></div>
+      <div class="slist" id="slist"></div>
+    </div>
+    <div id="cities">
+      <h2 class="title">Punjab cities right now <span class="u">پنجاب کے شہر</span></h2>
+      <p class="note">Modelled US AQI, most polluted first.</p>
+      <div id="rank"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="title">Where the numbers come from</h2>
+    <dl class="src" style="margin:1rem 0 0">
+      <div><dt>Live reading &amp; agent</dt><dd>WAQI ground stations, NASA FIRMS fires, Punjab EPA categories, via the backend agent</dd></div>
+      <div><dt>Forecast, pollutants, cities</dt><dd>Open-Meteo air quality model (CAMS), fetched live in your browser</dd></div>
+      <div><dt>Wind &amp; weather</dt><dd>Open-Meteo, for Lahore's coordinates</dd></div>
+    </dl>
+  </section>
+</main>
+
+<aside class="chat" aria-label="Ask the agent">
+  <div class="c-h"><div><h2>Ask about the air</h2><span class="chip-a"><i id="cdot"></i><span id="chipA">AQI —</span></span></div><button class="x" id="close" type="button" aria-label="Close chat">×</button></div>
+  <div class="thread" id="thread" aria-live="polite"><p class="empty" id="empty">Ask a question. The gauge stays in view.</p></div>
+  <div class="c-f">
+    <div class="sug" id="sug"><button type="button">Why is the air bad today?</button><button type="button">Should my kids play outside?</button><button type="button">Will it clear up tomorrow?</button><button type="button">Where is the smoke coming from?</button></div>
+    <form class="cmp-f" id="form"><label for="q" hidden>Your question</label><input id="q" autocomplete="off" placeholder="Is it safe to run this evening?"><button class="btn" id="send" type="submit">Ask</button></form>
+  </div>
+</aside>
+</div>
+
+<footer class="foot">
+  <p>Made with ❤️ by <a href="https://www.linkedin.com/in/muhammadadeelai/" target="_blank" rel="noopener">@muhammadadeelai</a></p>
+  <p>Readings are indicative. For medical decisions, talk to a doctor.</p>
+</footer>
+</div>
+<button class="btn launch" id="open2" type="button">Ask the agent</button>
+
+<script>
+/* BACKEND URL: replace with your deployed URL when you deploy */
+const API="http://127.0.0.1:8000";
+const $=id=>document.getElementById(id);
+const L=[[50,"Good","#D7E0C7","#2B2A1F",.95],[100,"Satisfactory","#E3DCAF","#2E2A16",.85],[150,"Moderate","#E7C97E","#302411",.68],[200,"Unhealthy for Sensitive People","#DFA75E","#2E1D0B",.5],[300,"Unhealthy","#C07E4E","#FBF3E7",.32],[400,"Very Unhealthy","#9C6142","#FBF3E7",.18],[1e9,"Hazardous","#74432C","#FBF3E7",.08]];
+const MIN=[0,51,101,151,201,301,401];
+const lv=a=>L.find(l=>a<=l[0])||L[6];
+const frac=a=>{const i=L.indexOf(lv(a)),lo=MIN[i],hi=i==6?lo+100:L[i][0];return (i+Math.max(0,Math.min(1,(a-lo)/(hi-lo))))/7};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const WMO={0:"Clear sky",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Fog",48:"Fog",51:"Drizzle",53:"Drizzle",55:"Drizzle",61:"Light rain",63:"Rain",65:"Heavy rain",80:"Showers",81:"Showers",82:"Heavy showers",95:"Thunderstorm",96:"Thunderstorm",99:"Thunderstorm"};
+const C16=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const LAT=31.5497,LON=74.3436;
+
+/* gauge geometry */
+(function(){const cx=130,cy=130,r=100,P=f=>{const t=Math.PI*(1-f);return[cx+r*Math.cos(t),cy-r*Math.sin(t)]};
+let a="",t="";
+L.forEach((l,i)=>{const[x1,y1]=P(i/7),[x2,y2]=P((i+1)/7);a+=`<path d="M${x1.toFixed(1)} ${y1.toFixed(1)}A${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="${l[2]}" stroke-width="18"/>`});
+[0,50,100,150,200,300,400,500].forEach((v,i)=>{const f=i/7,tt=Math.PI*(1-f),x=cx+118*Math.cos(tt),y=cy-118*Math.sin(tt)+3;t+=`<text class="g-tick" x="${x.toFixed(1)}" y="${y.toFixed(1)}">${v}</text>`});
+$("arcs").innerHTML='<path d="M20 130A110 110 0 0 1 240 130" fill="none" stroke="currentColor" stroke-opacity=".12" stroke-width="1"/>'+a;$("ticks").innerHTML=t;
+$("leg").innerHTML=L.map(l=>`<span><i style="background:${l[2]}"></i>${l[1].replace("Unhealthy for Sensitive People","Sensitive")}</span>`).join("")})();
+
+function setHero(aqi,cat,adv,src){const l=lv(aqi),h=$("hero");
+h.style.background=l[2];h.style.color=l[3];h.style.setProperty("--sun",l[4]);
+$("needle").style.transform=`rotate(${(frac(aqi)-.5)*180}deg)`;
+$("num").textContent=Math.round(aqi);$("state").textContent=cat||l[1];$("adv").textContent=adv||"";
+$("chipA").textContent="AQI "+Math.round(aqi)+" · "+(cat||l[1]);$("cdot").style.background=l[2]}
+
+/* independent, browser-side data */
+async function loadWeather(){try{const c=(await(await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&timezone=Asia%2FKarachi`)).json()).current;
+$("wx").textContent=Math.round(c.temperature_2m)+"°C, "+(WMO[c.weather_code]||"—");
+$("wArrow").style.transform=`rotate(${c.wind_direction_10m}deg)`;$("wind").textContent=Math.round(c.wind_speed_10m)+" km/h from "+C16[Math.round(c.wind_direction_10m/22.5)%16]}catch{$("wx").textContent=$("wind").textContent="Unavailable"}}
+
+let lahoreModel=null;
+async function loadModel(){try{const d=await(await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}&current=us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide&hourly=us_aqi&forecast_days=7&timezone=Asia%2FKarachi`)).json();
+lahoreModel=d.current;
+const P=[["PM2.5","Fine particles","pm2_5","باریک ذرات"],["PM10","Coarse particles","pm10","موٹے ذرات"],["O₃","Ozone","ozone","اوزون"],["NO₂","Nitrogen dioxide","nitrogen_dioxide","نائٹروجن ڈائی آکسائیڈ"],["SO₂","Sulphur dioxide","sulphur_dioxide","سلفر ڈائی آکسائیڈ"],["CO","Carbon monoxide","carbon_monoxide","کاربن مونو آکسائیڈ"]];
+$("poll").innerHTML=P.map(p=>`<div class="pl"><p class="n">${p[0]}</p><p class="s">${p[1]}</p><p class="s ur">${p[3]}</p><p class="v">${d.current[p[2]]!=null?(+d.current[p[2]]).toFixed(1):"—"} <small>µg/m³</small></p></div>`).join("");
+const day={};d.hourly.time.forEach((t,i)=>{const v=d.hourly.us_aqi[i];if(v!=null){const k=t.slice(0,10);day[k]=Math.max(day[k]||0,v)}});
+drawForecast(Object.entries(day).slice(0,7))}catch{$("fnote").textContent="Forecast unavailable right now.";$("poll").innerHTML='<p class="note" style="padding:1rem">Pollutant data unavailable right now.</p>'}}
+
+function drawForecast(rows){if(!rows.length)return;const w=560,h=210,pl=34,pr=14,pt=22,pb=28,pw=w-pl-pr,ph=h-pt-pb;
+const yM=Math.max(200,Math.ceil(Math.max(...rows.map(r=>r[1]))*1.15/50)*50),x=i=>pl+(rows.length==1?pw/2:i/(rows.length-1)*pw),y=v=>pt+ph-Math.min(v,yM)/yM*ph;
+let s="";L.forEach((l,i)=>{const t=Math.min(l[0],yM),b=Math.min(MIN[i],yM);if(b<yM)s+=`<rect x="${pl}" y="${y(t)}" width="${pw}" height="${Math.max(0,y(b)-y(t))}" fill="${l[2]}" opacity=".55"/>`});
+const pts=rows.map((r,i)=>x(i)+","+y(r[1])).join(" ");
+s+=`<polyline points="${pts}" fill="none" stroke="#29251F" stroke-width="2"/>`;
+rows.forEach((r,i)=>{const d=new Date(r[0]+"T00:00:00");s+=`<circle cx="${x(i)}" cy="${y(r[1])}" r="4" fill="#AD7A34" stroke="#29251F" stroke-width="1.5"/><text class="vl" x="${x(i)}" y="${y(r[1])-10}" text-anchor="middle">${Math.round(r[1])}</text><text class="ax" x="${x(i)}" y="${h-9}" text-anchor="middle">${d.toLocaleDateString([],{weekday:"short"})}</text>`});
+$("fsvg").innerHTML=s}
+
+const CITIES=[["Lahore",31.5497,74.3436],["Gujranwala",32.1877,74.1945],["Faisalabad",31.4504,73.135],["Multan",30.1575,71.5249],["Rawalpindi",33.5651,73.0169],["Sialkot",32.4945,74.5229],["Sargodha",32.074,72.6861],["Sheikhupura",31.7167,73.985],["Gujrat",32.5731,74.0789],["Bahawalpur",29.3956,71.6836]];
+async function loadCities(){
+const res=await Promise.allSettled(CITIES.map(c=>fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${c[1]}&longitude=${c[2]}&current=us_aqi&timezone=auto`).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()})));
+const rows=res.map((r,i)=>[CITIES[i][0],r.status=="fulfilled"&&r.value.current?r.value.current.us_aqi:null]).filter(r=>r[1]!=null).sort((a,b)=>b[1]-a[1]);
+$("rank").innerHTML=rows.length?rows.map((r,i)=>{const l=lv(r[1]);return `<div class="rk"><span class="mono" style="color:var(--soft)">${i+1}</span><span>${r[0]}</span><span class="b"><i style="width:${Math.min(100,r[1]/3)}%;background:${l[2]};filter:saturate(1.4) brightness(.92)"></i></span><span class="a">${Math.round(r[1])}</span></div>`}).join(""):'<p class="note">Could not load city data. Check your internet connection, then press Check again.</p>'}
+
+/* backend-powered: stations + agent snapshot */
+const B={s:31.30,w:74.10,n:31.70,e:74.55};
+async function loadStations(){$("mnote").textContent="Loading nearby stations…";
+try{const r=await fetch(API+"/stations");
+if(r.status==404){$("mnote").textContent="The backend is running but has no /stations route yet. Add it to api.py and restart.";return}
+if(!r.ok)throw new Error(r.status);
+const {stations,debug}=await r.json();const v=(stations||[]).filter(s=>typeof s.lat=="number"&&typeof s.aqi=="number");
+if(!v.length){$("mnote").textContent="No stations came back. WAQI said: "+(debug||"nothing");return}
+$("dots").innerHTML=v.map(s=>{const l=lv(s.aqi),x=Math.max(16,Math.min(324,(s.lon-B.w)/(B.e-B.w)*340)),y=Math.max(16,Math.min(304,(B.n-s.lat)/(B.n-B.s)*320));return `<g class="st" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle r="11" fill="${l[2]}"/><text dy="3.5" style="fill:${l[3]}">${Math.round(s.aqi)}</text><title>${esc(s.name)}: AQI ${Math.round(s.aqi)}</title></g>`}).join("");
+$("mnote").textContent=v.length+" stations reporting around Lahore."
+const nm=n=>esc(n.replace(/\bLHE\b/g,"").replace(/,?\s*(Lahore|Punjab|Pakistan)\b/gi,"").replace(/[\s,]+$/,"").trim()||n);
+$("slist").innerHTML=[...v].sort((a,b)=>b.aqi-a.aqi).map(t=>`<div class="sl"><i style="background:${lv(t.aqi)[2]};filter:saturate(1.4) brightness(.92)"></i><span title="${esc(t.name)}">${nm(t.name)}</span><b>${Math.round(t.aqi)}</b></div>`).join("")}
+catch{$("mnote").textContent="Can't reach the backend at "+API+". Start api.py, then press Check again."}}
+
+const bid=crypto.randomUUID?crypto.randomUUID():"web-"+Date.now(),T_MAIN=bid,T_SNAP=bid+":snap";
+async function ask(m,t){const r=await fetch(API.replace(/\/+$/,"")+"/ask",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:m,thread_id:t})});if(!r.ok)throw new Error("The server answered with "+r.status+".");return((await r.json()).answer||"").trim()}
+const jx=(t,o,c)=>{t=t.replace(/```json/gi,"").replace(/```/g,"");const a=t.indexOf(o),b=t.lastIndexOf(c);if(a<0||b<0)return null;try{return JSON.parse(t.slice(a,b+1))}catch{return null}};
+const SNAP='Return ONLY a raw JSON object, no markdown, no code fences. Keys exactly: aqi (number), category (string), pollutant (string), fires (number), advisory (string). Use get_aqi for aqi and pollutant, get_health_advisory for category and advisory, get_fire_hotspots for fires.';
+const FP=["Fine particles","باریک ذرات"];const PN={pm25:FP,"pm2.5":FP,pm10:["Coarse dust","موٹا گرد"],o3:["Ozone","اوزون"],no2:["Nitrogen dioxide","نائٹروجن ڈائی آکسائیڈ"],so2:["Sulphur dioxide","سلفر ڈائی آکسائیڈ"],co:["Carbon monoxide","کاربن مونو آکسائیڈ"]};
+async function loadLive(){$("dot").dataset.s="loading";$("state").textContent="reading the monitors";$("adv").textContent="Waking the server. First load can take up to a minute.";$("refresh").disabled=true;
+try{const s=jx(await ask(SNAP,T_SNAP),"{","}");if(!s||typeof s.aqi!="number")throw new Error("Station data came back unreadable.");
+setHero(s.aqi,s.category,s.advisory);$("fires").textContent=typeof s.fires=="number"?s.fires+(s.fires==1?" hotspot":" hotspots"):"—";{const pn=PN[String(s.pollutant).toLowerCase()];$("pol").innerHTML=pn?pn[0]+'<span class="ur">'+pn[1]+'</span>':esc(s.pollutant||"—")}
+$("dot").dataset.s="ok";$("upd").textContent="Station reading, "+new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}
+catch(e){$("dot").dataset.s="error";const m=lahoreModel;
+if(m&&m.us_aqi!=null){setHero(m.us_aqi,null,"Backend unreachable, showing the modelled estimate instead.");$("upd").textContent="Model estimate"}
+else{$("state").textContent="not reachable";$("adv").textContent=e.message+" Try again."; $("upd").textContent=""}}
+finally{$("refresh").disabled=false}}
+
+/* chat */
+const md=raw=>esc(raw).split(/\n\s*\n/).map(b=>{const ls=b.split("\n").map(l=>l.trim()).filter(Boolean),i=s=>s.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");
+return ls.length&&ls.every(l=>/^[-*]\s+/.test(l))?"<ul>"+ls.map(l=>"<li>"+i(l.replace(/^[-*]\s+/,""))+"</li>").join("")+"</ul>":"<p>"+i(ls.join(" "))+"</p>"}).join("");
+function turn(c,h,x){$("empty")?.remove();const n=document.createElement("div");n.className=c+(x?" "+x:"");n.innerHTML=h;$("thread").appendChild(n);n.scrollIntoView({block:"nearest",behavior:"smooth"});return n}
+let busy=false;
+async function submit(t){t=t.trim();if(!t||busy)return;busy=true;$("send").disabled=true;$("q").value="";turn("you",esc(t));const p=turn("bot","<p>Reading the monitors…</p>","pend");
+try{const a=await ask(t,T_MAIN);p.classList.remove("pend");p.innerHTML=md(a||"No answer came back. Ask again.")}
+catch(e){p.classList.remove("pend");p.classList.add("er");p.innerHTML="<p>"+esc(e.message)+"</p>"}
+finally{busy=false;$("send").disabled=false;$("q").focus()}}
+const toggle=o=>{document.body.classList.toggle("open",o);if(o)setTimeout(()=>$("q").focus(),50)};
+$("open1").onclick=$("open2").onclick=()=>toggle(true);$("close").onclick=()=>toggle(false);
+$("form").onsubmit=e=>{e.preventDefault();submit($("q").value)};
+$("sug").onclick=e=>{if(e.target.tagName=="BUTTON")submit(e.target.textContent)};
+$("refresh").onclick=()=>{loadWeather();loadCities();loadModel();loadLive();loadStations()};
+
+loadWeather();loadCities();loadStations();
+loadModel().then(loadLive);
+</script>
+</body>
+</html>
